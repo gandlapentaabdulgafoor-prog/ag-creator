@@ -1,0 +1,20 @@
+node_modules/
+build/
+dist/
+coverage/
+.test-build/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Private keys and server credentials
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+serviceAccount*.json
+firebase-adminsdk*.json
+credentials*.json
+.ag-creator-verification/

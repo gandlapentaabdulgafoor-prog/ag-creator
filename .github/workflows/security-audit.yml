@@ -1,0 +1,42 @@
+name: CI Security & Secret Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-audit:
+    name: Secret Exposure & Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Scan for Hardcoded Private Keys & Sensitive Tokens
+        run: |
+          echo "Auditing repository for unmasked private keys and secrets..."
+          # Fail if any unmasked private keys are checked into source
+          if grep -rn --exclude-dir=".git" --exclude-dir="node_modules" "BEGIN RSA PRIVATE KEY\|BEGIN OPENSSH PRIVATE KEY\|BEGIN EC PRIVATE KEY" .; then
+            echo "::error::Unmasked private keys detected in repository!"
+            exit 1
+          fi
+          echo "✓ Zero unmasked private keys detected."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify Web Dependencies
+        run: |
+          npm audit --audit-level=critical
+          echo "✓ Web dependencies passed critical vulnerability check."
+
+      - name: Run Web Automated Regression Suite
+        run: |
+          npm test
+          echo "✓ All automated backend & platform regression tests passed."

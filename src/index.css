@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #0b0f19;
+    color: #f3f4f6;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@media (max-width: 767px) {
+  .creator-main-container,
+  .creator-workspace,
+  .creator-workspace-content,
+  .creator-workspace-column,
+  .creator-input-card,
+  .creator-idea-input {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .creator-main-container,
+  .creator-workspace {
+    width: 100%;
+  }
+
+  .creator-workspace-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .creator-idea-input {
+    display: block;
+    width: 100%;
+  }
+
+  .platform-switcher-layout {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .platform-switcher-nav {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .platform-switcher-nav::-webkit-scrollbar,
+  .creator-workflow-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .platform-switcher-option {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .creator-workflow-chips {
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .creator-workflow-chips > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}

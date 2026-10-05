@@ -1,0 +1,6 @@
+{
+  "name": "ONEAG - Multi-Platform Referral & Rewards",
+  "description": "ONEAG multi-platform referral and rewards platform for Web, Android (Kotlin Compose), and iOS (SwiftUI) powered by Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

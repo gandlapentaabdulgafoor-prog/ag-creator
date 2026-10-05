@@ -1,0 +1,271 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation for new user profile
+    function isValidNewUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'referralCode', 'pointsBalance', 'tier', 'totalReferrals', 'withdrawalStatus'])
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 254
+        && data.referralCode is string && data.referralCode.size() >= 4 && data.referralCode.size() <= 12 && data.referralCode.matches('^[A-Z0-9]+$')
+        && data.pointsBalance >= 0 && data.pointsBalance <= 100
+        && data.totalReferrals >= 0
+        && data.tier in ['Bronze', 'Silver', 'Gold', 'Platinum']
+        && data.withdrawalStatus == 'LOCKED'
+        && (
+          !('referredBy' in data) || data.referredBy == null || (
+            data.referredBy is string && data.referredBy.size() >= 4 && data.referredBy.size() <= 12 && data.referredBy.matches('^[A-Z0-9]+$')
+            && 'referredByUid' in data && (data.referredByUid == null || (data.referredByUid is string && data.referredByUid.size() <= 128 && data.referredByUid != request.auth.uid))
+          )
+        );
+    }
+
+    // Validation for updating user profile
+    function isValidUserProfileUpdate(data, prev) {
+      return data.uid == prev.uid
+        && data.referralCode == prev.referralCode
+        && data.withdrawalStatus == 'LOCKED'
+        && data.pointsBalance >= prev.pointsBalance
+        && (prev.referredBy == null || data.referredBy == prev.referredBy)
+        && (
+          // Standard profile edit (displayName, photoURL, updatedAt)
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+          // Or verified points / referral count update
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pointsBalance', 'totalReferrals', 'tier', 'updatedAt'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pointsBalance', 'updatedAt'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'pointsBalance', 'totalReferrals', 'tier', 'updatedAt'])
+          // Or initial referral attribution fields (only when not previously set)
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referredBy', 'referredByUid', 'updatedAt'])
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'referredBy', 'referredByUid', 'updatedAt'])
+        );
+    }
+
+    // Validation for new user wallet initialization
+    function isValidNewUserWallet(data, userId) {
+      return data.keys().hasAll(['walletId', 'userId', 'availableBalance', 'pendingBalance', 'totalEarned', 'withdrawalStatus', 'currency', 'updatedAt'])
+        && data.userId == userId
+        && data.walletId is string && data.walletId.size() <= 128
+        && data.availableBalance == 0
+        && data.pendingBalance == 0
+        && data.totalEarned == 0
+        && data.withdrawalStatus == 'LOCKED'
+        && data.currency is string && data.currency.size() <= 16;
+    }
+
+    // Secure Referral Record Validator (Prevents self-referral, invalid code, duplicate referrals)
+    function isValidReferralRecord(data, targetReferredUid) {
+      return data.keys().hasAll(['referrerUserId', 'referredUserId', 'referralCode', 'platform', 'status', 'createdAt', 'verifiedAt', 'rewardLedgerId'])
+        && data.referredUserId == targetReferredUid
+        && data.referrerUserId != targetReferredUid // Prevent self-referral
+        && data.referralCode is string && data.referralCode.matches('^[A-Z0-9]+$') // Valid code pattern
+        && exists(/databases/$(database)/documents/referralCodes/$(data.referralCode))
+        && get(/databases/$(database)/documents/referralCodes/$(data.referralCode)).data.uid == data.referrerUserId
+        && data.platform in ['web', 'android', 'ios']
+        && data.status in ['PENDING', 'VERIFIED', 'REJECTED']
+        && (!('clickId' in data) || data.clickId == null || (data.clickId is string && data.clickId.size() <= 128))
+        && (!('transactionId' in data) || data.transactionId == null || (data.transactionId is string && data.transactionId.size() <= 128))
+        && (!('referralRecordId' in data) || (data.referralRecordId is string && data.referralRecordId.size() <= 128));
+    }
+
+    // Secure Affiliate Click Validator (Auditable tracking)
+    function isValidAffiliateClick(data) {
+      return data.keys().hasAll(['clickId', 'userId', 'partnerId', 'productId', 'trackingId', 'timestamp'])
+        && data.clickId is string && data.clickId.size() <= 128
+        && data.userId == request.auth.uid
+        && data.partnerId is string && data.partnerId.size() <= 64
+        && data.productId is string && data.productId.size() <= 128
+        && data.trackingId is string && data.trackingId.size() <= 128
+        && (!('referralId' in data) || data.referralId == null || (data.referralId is string && data.referralId.size() <= 128))
+        && (!('referrerUserId' in data) || data.referrerUserId == null || (data.referrerUserId is string && data.referrerUserId.size() <= 128))
+        && (!('referralRecordId' in data) || data.referralRecordId == null || (data.referralRecordId is string && data.referralRecordId.size() <= 128));
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // strictly forbid user scraping
+      allow create: if isOwner(userId) && isValidId(userId) && isValidNewUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfileUpdate(incoming(), existing());
+      allow delete: if false;
+
+      // Subcollection: Wallet
+      match /wallet/{walletId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidNewUserWallet(incoming(), userId);
+        allow update, delete: if false; // Server authoritative balance updates
+      }
+
+      // Subcollection: Referrals (read by owner)
+      match /referrals/{referralId} {
+        allow read: if isOwner(userId);
+        allow create: if isSignedIn()
+          && (request.auth.uid == userId || request.auth.uid == incoming().referredUserId)
+          && isValidReferralRecord(incoming(), incoming().referredUserId);
+        allow update, delete: if false;
+      }
+
+      // Subcollection: Rewards Ledger (strictly append-only, immutable)
+      // Note: Registration alone NEVER grants referral commission.
+      // Referral rewards are issued strictly upon genuine server-verified qualifying transactions.
+      match /rewardsLedger/{ledgerId} {
+        allow read: if isOwner(userId);
+        allow create: if (
+          // Verified daily streak or community activity bonus claimed by authenticated owner
+          isOwner(userId)
+          && incoming().userId == userId
+          && incoming().amount is number
+          && incoming().amount <= 50
+          && incoming().type in ['DAILY_STREAK', 'COMMUNITY_TASK', 'TIER_UPGRADE']
+          && incoming().status in ['CREDITED', 'PENDING']
+          && !exists(/databases/$(database)/documents/users/$(userId)/rewardsLedger/$(ledgerId))
+        );
+        allow update, delete: if false;
+      }
+
+      // Subcollection: Monthly Activity & Tier Progression Tracking
+      match /monthlyActivity/{monthYear} {
+        allow read: if isOwner(userId);
+        allow write: if false; // Server aggregated only
+      }
+    }
+
+    // Global Referrals Registry (Enforces 1-referral-per-user globally to prevent duplicate referrals)
+    match /referrals/{referredUserId} {
+      allow get: if isSignedIn() && (request.auth.uid == referredUserId || request.auth.uid == resource.data.referrerUserId);
+      allow list: if false;
+      allow create: if isSignedIn()
+        && request.auth.uid == referredUserId
+        && !exists(/databases/$(database)/documents/referrals/$(referredUserId))
+        && isValidReferralRecord(incoming(), referredUserId);
+      allow update, delete: if false;
+    }
+
+    // Referral Code Registry (ensures global uniqueness)
+    match /referralCodes/{code} {
+      allow get: if isSignedIn() && code.size() >= 4 && code.size() <= 12 && code.matches('^[A-Z0-9]+$');
+      allow list: if false;
+      allow create: if isSignedIn()
+        && incoming().code == code
+        && incoming().uid == request.auth.uid
+        && code.size() >= 4 && code.size() <= 12 && code.matches('^[A-Z0-9]+$')
+        && !exists(/databases/$(database)/documents/referralCodes/$(code));
+      allow update, delete: if false;
+    }
+
+    // System Compliance Policy (Read-Only)
+    match /appConfig/compliance {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // System Reward Rules & Caps (Read-Only to authenticated clients, managed server-side)
+    match /appConfig/rewardRules {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // Products Catalog (Read-only for users, populated exclusively via backend affiliate feeds/Admin SDK)
+    match /products/{productId} {
+      allow get: if isSignedIn() && isValidId(productId);
+      allow list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Outbound Affiliate Clicks (Auditable tracking restricted strictly to authenticated caller)
+    match /affiliateClicks/{clickId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && incoming().clickId == clickId
+        && incoming().userId == request.auth.uid
+        && isValidAffiliateClick(incoming());
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Affiliate Partners Directory (Public metadata, no secret keys)
+    match /affiliatePartners/{partnerId} {
+      allow get: if isSignedIn() && isValidId(partnerId);
+      allow list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Affiliate Transactions (Authoritative records managed exclusively via server webhooks/Admin SDK)
+    // Client applications (Web, Android, iOS) are strictly forbidden from creating, altering, or deleting transactions.
+    match /affiliateTransactions/{transactionId} {
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || ('referredUserId' in resource.data && resource.data.referredUserId == request.auth.uid)
+        || ('referrerUserId' in resource.data && resource.data.referrerUserId == request.auth.uid)
+        || ('referralId' in resource.data && resource.data.referralId == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || ('referredUserId' in resource.data && resource.data.referredUserId == request.auth.uid)
+        || ('referrerUserId' in resource.data && resource.data.referrerUserId == request.auth.uid)
+        || ('referralId' in resource.data && resource.data.referralId == request.auth.uid)
+      );
+      // Strictly block client-side creation and mutation of commissionAmount, rewardAmount, transactionStatus, etc.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Postback Events (Server-Authoritative Only)
+    // Raw postback payloads and webhook events are strictly inaccessible to client SDKs
+    match /postbackEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // Admin Audit Logs (Server-Authoritative Only)
+    match /adminAuditLogs/{logId} {
+      allow read, write: if false;
+    }
+
+    // KYC Records (Read-only by authenticated owner, writes strictly forbidden for client SDKs)
+    match /kycRecords/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // Withdrawal Requests (Read-only by authenticated owner, writes strictly forbidden for client SDKs)
+    match /withdrawalRequests/{requestId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+  }
+}

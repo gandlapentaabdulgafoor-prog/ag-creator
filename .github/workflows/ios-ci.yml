@@ -1,0 +1,50 @@
+name: iOS Native CI & Package Verification
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-swift-package-test:
+    name: Swift Package Build & Test (No Signing Required)
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -switch /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Secret Scan Verification
+        run: |
+          echo "Scanning iOS source tree for unmasked credentials..."
+          if grep -rn --exclude-dir=".git" "BEGIN PRIVATE KEY" ios/; then
+            echo "::error::Private key detected in iOS tree!"
+            exit 1
+          fi
+          echo "iOS source tree is clean of hardcoded secrets."
+
+      - name: Swift Package Resolve & Build
+        working-directory: ios
+        run: |
+          swift package resolve
+          swift build -v
+
+      - name: Swift Package Unit Tests
+        working-directory: ios
+        run: |
+          swift test -v

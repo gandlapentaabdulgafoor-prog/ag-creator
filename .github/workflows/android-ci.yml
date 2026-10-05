@@ -1,0 +1,75 @@
+name: Android Native CI & Security Hardening
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-build-and-test:
+    name: Android Build, Lint & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Secret Scan Verification
+        run: |
+          echo "Scanning Android source tree for unmasked credentials..."
+          # Ensure no hardcoded private keys or production secrets exist in source files
+          if grep -rn --exclude-dir=".git" --exclude="*.lock" "BEGIN PRIVATE KEY" android/; then
+            echo "::error::Private key found in android source directory!"
+            exit 1
+          fi
+          echo "Source tree is clean of hardcoded private keys."
+
+      - name: Grant Execute Permission for Gradle Wrapper
+        run: chmod +x android/gradlew
+
+      - name: Run Android Static Analysis (Lint)
+        run: |
+          cd android
+          ./gradlew lintProdRelease --stacktrace
+
+      - name: Run Android Unit Tests
+        run: |
+          cd android
+          ./gradlew testProdReleaseUnitTest --stacktrace
+
+      - name: Build Android Release Bundle & APK
+        run: |
+          cd android
+          # Assembles unsigned release artifacts for inspection
+          ./gradlew assembleProdRelease bundleProdRelease --stacktrace
+
+      - name: Archive Android Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-artifacts
+          path: |
+            android/app/build/outputs/apk/prod/release/*.apk
+            android/app/build/outputs/bundle/prodRelease/*.aab
+          if-no-files-found: warn

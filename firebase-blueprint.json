@@ -1,0 +1,792 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with unique referral code, tier status, points balance, and strict withdrawal lock status.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar URL",
+          "maxLength": 500
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "Unique uppercase referral code",
+          "maxLength": 12,
+          "minLength": 4,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "referredBy": {
+          "type": "string",
+          "description": "Referral code of inviter if any",
+          "maxLength": 12
+        },
+        "referredByUid": {
+          "type": "string",
+          "description": "UID of inviter if any",
+          "maxLength": 128
+        },
+        "pointsBalance": {
+          "type": "number",
+          "description": "Current points balance determined strictly by server ledger"
+        },
+        "tier": {
+          "type": "string",
+          "description": "Loyalty tier",
+          "enum": ["Bronze", "Silver", "Gold", "Platinum"]
+        },
+        "totalReferrals": {
+          "type": "number",
+          "description": "Total successfully verified referrals count"
+        },
+        "withdrawalStatus": {
+          "type": "string",
+          "description": "Withdrawal lock status",
+          "enum": ["LOCKED", "PENDING_EARLY_ACCESS", "DISABLED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account registration timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Profile last updated timestamp"
+        }
+      },
+      "required": ["uid", "email", "referralCode", "pointsBalance", "tier", "totalReferrals", "withdrawalStatus"]
+    },
+    "UserWallet": {
+      "title": "UserWallet",
+      "description": "User wallet ledger tracking confirmed available balance, pending transaction holds, and locked withdrawal status.",
+      "type": "object",
+      "properties": {
+        "walletId": {
+          "type": "string",
+          "description": "Unique wallet identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of wallet owner",
+          "maxLength": 128
+        },
+        "availableBalance": {
+          "type": "number",
+          "description": "Cleared and confirmed reward points balance ready for authorized use"
+        },
+        "pendingBalance": {
+          "type": "number",
+          "description": "Pending points balance undergoing return-window validation"
+        },
+        "totalEarned": {
+          "type": "number",
+          "description": "Cumulative reward points earned lifetime"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Reward currency or points denomination",
+          "maxLength": 16
+        },
+        "withdrawalStatus": {
+          "type": "string",
+          "description": "Withdrawal lock status strictly locked in beta",
+          "enum": ["LOCKED", "PENDING_EARLY_ACCESS", "DISABLED"]
+        },
+        "lastTransactionAt": {
+          "type": "string",
+          "description": "Timestamp of most recent wallet transaction"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of last balance recalculation"
+        }
+      },
+      "required": ["walletId", "userId", "availableBalance", "pendingBalance", "totalEarned", "withdrawalStatus", "currency", "updatedAt"]
+    },
+    "ReferralCodeMapping": {
+      "title": "ReferralCodeMapping",
+      "description": "Lookup index guaranteeing uniqueness of referral codes across all users and platforms.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "The unique uppercase referral code",
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "UID of the owner user",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["code", "uid"]
+    },
+    "ReferralRecord": {
+      "title": "ReferralRecord",
+      "description": "Attribution model separating inviter, referee, clickId, and transactionId, requiring eligible activity for rewards.",
+      "type": "object",
+      "properties": {
+        "referralRecordId": {
+          "type": "string",
+          "description": "Unique referral record identifier",
+          "maxLength": 128
+        },
+        "referrerUserId": {
+          "type": "string",
+          "description": "UID of the user who referred",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "referredUserId": {
+          "type": "string",
+          "description": "UID of the user who was referred",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "The exact referral code attributed",
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Signup source platform",
+          "enum": ["web", "android", "ios"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Referral verification status",
+          "enum": ["PENDING", "VERIFIED", "REJECTED"]
+        },
+        "clickId": {
+          "type": "string",
+          "description": "Attributed click ID if linked to an outbound affiliate session",
+          "maxLength": 128
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Server-reconciled qualifying affiliate transaction ID that unlocked the referral reward",
+          "maxLength": 128
+        },
+        "qualifyingActivityId": {
+          "type": "string",
+          "description": "Identifier of the verified qualifying activity",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Referral initiation timestamp"
+        },
+        "verifiedAt": {
+          "type": "string",
+          "description": "Timestamp when server verified eligibility following qualifying purchase"
+        },
+        "rewardLedgerId": {
+          "type": "string",
+          "description": "Reference to the associated rewards ledger credit event",
+          "maxLength": 128
+        }
+      },
+      "required": ["referralRecordId", "referrerUserId", "referredUserId", "referralCode", "platform", "status", "createdAt", "verifiedAt", "rewardLedgerId"]
+    },
+    "RewardsLedger": {
+      "title": "RewardsLedger",
+      "description": "Immutable ledger entry recording genuine server-validated reward credits. Registration alone never grants referral bonus.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Ledger entry unique ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "maxLength": 128
+        },
+        "amount": {
+          "type": "number",
+          "description": "Points value credited by server"
+        },
+        "type": {
+          "type": "string",
+          "description": "Ledger event type excluding automatic signup referral rewards",
+          "enum": ["PURCHASE_REWARD", "REFERRAL_COMMISSION", "DAILY_STREAK", "COMMUNITY_TASK", "TIER_UPGRADE", "REVERSAL_REFUND"]
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable memo",
+          "maxLength": 200
+        },
+        "referenceId": {
+          "type": "string",
+          "description": "Associated transactionId or activity reference",
+          "maxLength": 128
+        },
+        "status": {
+          "type": "string",
+          "description": "Ledger processing status",
+          "enum": ["CREDITED", "PENDING", "REVERSED"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Ledger timestamp"
+        }
+      },
+      "required": ["id", "userId", "amount", "type", "description", "status", "createdAt"]
+    },
+    "AppPolicy": {
+      "title": "AppPolicy",
+      "description": "System regulatory compliance policy enforcing zero joining fee, zero investment requirement, and locked withdrawals.",
+      "type": "object",
+      "properties": {
+        "joiningFee": {
+          "type": "number",
+          "description": "Must be strictly 0"
+        },
+        "investmentRequired": {
+          "type": "string",
+          "description": "Strictly false or None"
+        },
+        "withdrawalEnabled": {
+          "type": "string",
+          "description": "Status of withdrawals during beta"
+        },
+        "withdrawalNotice": {
+          "type": "string",
+          "description": "Detailed explanation of withdrawal locking",
+          "maxLength": 500
+        },
+        "guaranteedIncomeDisclaimer": {
+          "type": "string",
+          "description": "Mandatory legal disclaimer",
+          "maxLength": 500
+        }
+      },
+      "required": ["joiningFee", "investmentRequired", "withdrawalEnabled", "guaranteedIncomeDisclaimer"]
+    },
+    "RewardConfiguration": {
+      "title": "RewardConfiguration",
+      "description": "Dynamic purchase reward and commission distribution rules without hardcoded percentages or guaranteed earnings.",
+      "type": "object",
+      "properties": {
+        "configId": {
+          "type": "string",
+          "description": "Rule configuration identifier",
+          "maxLength": 64
+        },
+        "partnerCommissionDependency": {
+          "type": "string",
+          "description": "Specifies that rewards are strictly contingent on partner payout confirmation",
+          "maxLength": 128
+        },
+        "rewardCalculationMethod": {
+          "type": "string",
+          "description": "Dynamic computation model based on partner commission share",
+          "maxLength": 128
+        },
+        "userRewardShareRate": {
+          "type": "number",
+          "description": "Configurable portion of partner commission routed to purchaser"
+        },
+        "referralCommissionShareRate": {
+          "type": "number",
+          "description": "Configurable portion of partner commission routed to eligible referrer"
+        },
+        "maxRewardCapPerTransaction": {
+          "type": "number",
+          "description": "Maximum reward points allowable per single purchase"
+        },
+        "maxMonthlyRewardCap": {
+          "type": "number",
+          "description": "Configurable monthly aggregate reward cap"
+        },
+        "pendingConfirmationPeriodDays": {
+          "type": "number",
+          "description": "Number of days matching partner return window before pending rewards confirm"
+        },
+        "refundCancellationPolicy": {
+          "type": "string",
+          "description": "Policy specification for rolling back pending or credited rewards upon order return",
+          "maxLength": 256
+        },
+        "minEligiblePurchaseAmount": {
+          "type": "number",
+          "description": "Minimum transaction value required to qualify for reward distribution"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of rule adjustment"
+        }
+      },
+      "required": ["configId", "partnerCommissionDependency", "rewardCalculationMethod", "userRewardShareRate", "referralCommissionShareRate", "maxRewardCapPerTransaction", "pendingConfirmationPeriodDays", "refundCancellationPolicy"]
+    },
+    "MonthlyActivityTracking": {
+      "title": "MonthlyActivityTracking",
+      "description": "Per-user monthly aggregate tracking of eligible purchases, volume, and loyalty tiers with configurable thresholds.",
+      "type": "object",
+      "properties": {
+        "monthYear": {
+          "type": "string",
+          "description": "Month partition identifier (e.g. 2026-09)",
+          "maxLength": 10
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of tracked user",
+          "maxLength": 128
+        },
+        "eligiblePurchaseCount": {
+          "type": "number",
+          "description": "Count of qualifying purchases within the calendar month"
+        },
+        "eligiblePurchaseVolume": {
+          "type": "number",
+          "description": "Total spend volume on eligible items"
+        },
+        "earnedPointsPending": {
+          "type": "number",
+          "description": "Points currently in pending validation state for this month"
+        },
+        "earnedPointsConfirmed": {
+          "type": "number",
+          "description": "Confirmed points credited to ledger for this month"
+        },
+        "rewardTier": {
+          "type": "string",
+          "description": "Current loyalty tier achieved based on dynamic thresholds",
+          "enum": ["Bronze", "Silver", "Gold", "Platinum"]
+        },
+        "tierThresholdMet": {
+          "type": "string",
+          "description": "Explanation of tier threshold qualification",
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of last monthly activity recalculation"
+        }
+      },
+      "required": ["monthYear", "userId", "eligiblePurchaseCount", "eligiblePurchaseVolume", "earnedPointsPending", "earnedPointsConfirmed", "rewardTier"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Catalog product model with dynamic pricing, provider attribution, and availability.",
+      "type": "object",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Unique product SKU / partner identifier",
+          "maxLength": 128
+        },
+        "partnerId": {
+          "type": "string",
+          "description": "Identifier of affiliate partner (e.g. amazon, flipkart, myntra)",
+          "maxLength": 64
+        },
+        "title": {
+          "type": "string",
+          "description": "Product title",
+          "maxLength": 300
+        },
+        "category": {
+          "type": "string",
+          "description": "OneAG canonical shopping category",
+          "maxLength": 80
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Product thumbnail image URL",
+          "maxLength": 500
+        },
+        "price": {
+          "type": "number",
+          "description": "Dynamic product price"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (e.g. INR)",
+          "maxLength": 10
+        },
+        "productUrl": {
+          "type": "string",
+          "description": "Product destination URL",
+          "maxLength": 1000
+        },
+        "availability": {
+          "type": "string",
+          "description": "Stock status",
+          "enum": ["IN_STOCK", "OUT_OF_STOCK", "PREORDER", "UNKNOWN"]
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Timestamp of last catalog feed sync"
+        }
+      },
+      "required": ["productId", "partnerId", "title", "category", "price", "currency", "productUrl", "availability"]
+    },
+    "AffiliateClick": {
+      "title": "AffiliateClick",
+      "description": "Auditable log of user outbound clicks with subtag/trackingId attribution.",
+      "type": "object",
+      "properties": {
+        "clickId": {
+          "type": "string",
+          "description": "Unique click ID",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of the clicking user",
+          "maxLength": 128
+        },
+        "referralId": {
+          "type": "string",
+          "description": "Inviter UID if attributed",
+          "maxLength": 128
+        },
+        "referrerUserId": {
+          "type": "string",
+          "description": "Inviter UID receiving referral attribution if attributed",
+          "maxLength": 128
+        },
+        "referralRecordId": {
+          "type": "string",
+          "description": "Attributed referral record identifier",
+          "maxLength": 128
+        },
+        "partnerId": {
+          "type": "string",
+          "description": "Affiliate partner network ID",
+          "maxLength": 64
+        },
+        "productId": {
+          "type": "string",
+          "description": "Product clicked",
+          "maxLength": 128
+        },
+        "trackingId": {
+          "type": "string",
+          "description": "Unique tracking token / subtag",
+          "maxLength": 128
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Click timestamp"
+        },
+        "productTitle": {
+          "type": "string",
+          "description": "Product title at time of click",
+          "maxLength": 300
+        },
+        "targetUrl": {
+          "type": "string",
+          "description": "Destination affiliate deep link",
+          "maxLength": 1000
+        }
+      },
+      "required": ["clickId", "userId", "partnerId", "productId", "trackingId", "timestamp"]
+    },
+    "AffiliatePartnerConfig": {
+      "title": "AffiliatePartnerConfig",
+      "description": "Public partner metadata, deep-link templates, and postback schemas without storing secret API keys.",
+      "type": "object",
+      "properties": {
+        "partnerId": {
+          "type": "string",
+          "description": "Unique partner identifier (e.g. amazon, flipkart, myntra)",
+          "maxLength": 64
+        },
+        "partnerName": {
+          "type": "string",
+          "description": "Full formal name of affiliate merchant",
+          "maxLength": 100
+        },
+        "programName": {
+          "type": "string",
+          "description": "Official partner affiliate program title",
+          "maxLength": 120
+        },
+        "baseDomain": {
+          "type": "string",
+          "description": "Standard root domain of partner",
+          "maxLength": 128
+        },
+        "trackingParameter": {
+          "type": "string",
+          "description": "Primary sub-ID or affiliate tag parameter name",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "description": "Operational partner status",
+          "enum": ["ACTIVE", "INACTIVE", "PENDING_CONFIG", "MAINTENANCE"]
+        },
+        "deepLinkTemplate": {
+          "type": "string",
+          "description": "Configurable URI format string for constructing approved affiliate deep links",
+          "maxLength": 500
+        },
+        "postbackMetadata": {
+          "type": "string",
+          "description": "Webhook endpoint format metadata for ingesting partner commission postbacks without secrets",
+          "maxLength": 500
+        },
+        "category": {
+          "type": "string",
+          "description": "Retail sector focus",
+          "maxLength": 100
+        },
+        "commissionNotice": {
+          "type": "string",
+          "description": "Transparent commission and attribution disclosures",
+          "maxLength": 300
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last configuration update timestamp"
+        }
+      },
+      "required": ["partnerId", "partnerName", "programName", "baseDomain", "trackingParameter", "status"]
+    },
+    "AffiliateTransaction": {
+      "title": "AffiliateTransaction",
+      "description": "Postback purchase transaction record supporting pending, confirmed, cancelled, and refunded states.",
+      "type": "object",
+      "properties": {
+        "transactionId": {
+          "type": "string",
+          "description": "Unique order / postback transaction identifier",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of purchaser (referred user)",
+          "maxLength": 128
+        },
+        "referredUserId": {
+          "type": "string",
+          "description": "Explicit purchaser UID for referral attribution queries",
+          "maxLength": 128
+        },
+        "referrerUserId": {
+          "type": "string",
+          "description": "Inviter UID receiving referral commission share if attributed",
+          "maxLength": 128
+        },
+        "referralRecordId": {
+          "type": "string",
+          "description": "Attributed referral record ID",
+          "maxLength": 128
+        },
+        "partnerId": {
+          "type": "string",
+          "description": "Affiliate partner ID",
+          "maxLength": 64
+        },
+        "productId": {
+          "type": "string",
+          "description": "Purchased product identifier",
+          "maxLength": 128
+        },
+        "clickId": {
+          "type": "string",
+          "description": "Associated click tracking ID",
+          "maxLength": 128
+        },
+        "trackingId": {
+          "type": "string",
+          "description": "Tracking token sent to partner",
+          "maxLength": 128
+        },
+        "purchaseAmount": {
+          "type": "number",
+          "description": "Total order amount reported by partner"
+        },
+        "commissionAmount": {
+          "type": "number",
+          "description": "Advertising commission amount earned"
+        },
+        "rewardAmount": {
+          "type": "number",
+          "description": "Points value credited to user ledger"
+        },
+        "transactionStatus": {
+          "type": "string",
+          "description": "Transaction processing state",
+          "enum": ["PENDING", "CONFIRMED", "CANCELLED", "REFUNDED"]
+        },
+        "refundStatus": {
+          "type": "string",
+          "description": "Refund state",
+          "enum": ["NONE", "INITIATED", "COMPLETED", "REJECTED"]
+        },
+        "confirmationDate": {
+          "type": "string",
+          "description": "Expected or actual date when return window expires and commission confirms"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Order creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Status update timestamp"
+        }
+      },
+      "required": ["transactionId", "userId", "partnerId", "productId", "clickId", "purchaseAmount", "commissionAmount", "rewardAmount", "transactionStatus", "refundStatus"]
+    },
+    "PostbackEvent": {
+      "title": "PostbackEvent",
+      "description": "Authoritative inbound affiliate webhook/postback events stored server-side with idempotency protection and status lifecycle.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "description": "Unique event identifier",
+          "maxLength": 128
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "description": "Deterministic idempotency key for replay prevention",
+          "maxLength": 128
+        },
+        "partnerId": {
+          "type": "string",
+          "description": "Affiliate partner network ID",
+          "maxLength": 64
+        },
+        "externalTransactionId": {
+          "type": "string",
+          "description": "Partner-side order or conversion identifier",
+          "maxLength": 128
+        },
+        "clickId": {
+          "type": "string",
+          "description": "Attributed click ID if present",
+          "maxLength": 128
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Canonical event type",
+          "maxLength": 64
+        },
+        "rawStatus": {
+          "type": "string",
+          "description": "Raw partner status string",
+          "maxLength": 64
+        },
+        "mappedStatus": {
+          "type": "string",
+          "description": "Mapped ONEAG standard status",
+          "enum": ["PENDING", "CONFIRMED", "CANCELLED", "REFUNDED", "REJECTED"]
+        },
+        "purchaseAmount": {
+          "type": "number",
+          "description": "Order purchase value"
+        },
+        "commissionAmount": {
+          "type": "number",
+          "description": "Gross advertising commission earned"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Transaction currency code",
+          "maxLength": 8
+        },
+        "processingStatus": {
+          "type": "string",
+          "description": "Event processing outcome",
+          "enum": ["RECEIVED", "PROCESSED", "DUPLICATE", "FAILED", "REJECTED"]
+        },
+        "receivedAt": {
+          "type": "string",
+          "description": "Webhook receipt timestamp"
+        }
+      },
+      "required": ["eventId", "idempotencyKey", "partnerId", "externalTransactionId", "mappedStatus", "processingStatus", "receivedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with points, unique referral code, and locked withdrawal state."
+    },
+    "/users/{userId}/wallet/{walletId}": {
+      "schema": "UserWallet",
+      "description": "User wallet ledger tracking available balance, pending holds, and locked withdrawal status."
+    },
+    "/referralCodes/{code}": {
+      "schema": "ReferralCodeMapping",
+      "description": "Unique code lookup registry to ensure referral codes cannot collide."
+    },
+    "/users/{userId}/referrals/{referralId}": {
+      "schema": "ReferralRecord",
+      "description": "Subcollection of verified referrals credited to the user with separated attribution fields."
+    },
+    "/referrals/{referredUserId}": {
+      "schema": "ReferralRecord",
+      "description": "Global uniqueness index of referrals so a user can never be referred twice."
+    },
+    "/users/{userId}/rewardsLedger/{ledgerId}": {
+      "schema": "RewardsLedger",
+      "description": "Subcollection of immutable rewards ledger events for the user. Excludes automatic signup bonuses."
+    },
+    "/users/{userId}/monthlyActivity/{monthYear}": {
+      "schema": "MonthlyActivityTracking",
+      "description": "Monthly eligible purchase count, spend volume, and tier progress tracking."
+    },
+    "/appConfig/compliance": {
+      "schema": "AppPolicy",
+      "description": "Platform policies and compliance terms (no joining fee, zero investment, withdrawal lock)."
+    },
+    "/appConfig/rewardRules": {
+      "schema": "RewardConfiguration",
+      "description": "Configurable dynamic purchase reward calculation, commission share rates, and return reversal policies."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Shopping product catalog populated by official partner APIs or feeds."
+    },
+    "/affiliateClicks/{clickId}": {
+      "schema": "AffiliateClick",
+      "description": "Outbound click tracking records linking user and inviter attribution to partner deep links."
+    },
+    "/affiliatePartners/{partnerId}": {
+      "schema": "AffiliatePartnerConfig",
+      "description": "Approved affiliate partner program directory, deep-link templates, and postback schemas."
+    },
+    "/affiliateTransactions/{transactionId}": {
+      "schema": "AffiliateTransaction",
+      "description": "Server-reconciled affiliate purchase and commission tracking records supporting PENDING, CONFIRMED, CANCELLED, REFUNDED states."
+    },
+    "/postbackEvents/{eventId}": {
+      "schema": "PostbackEvent",
+      "description": "Server-authoritative store of raw partner postbacks with idempotency and processing audit trail."
+    }
+  }
+}
